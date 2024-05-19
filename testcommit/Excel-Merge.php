@@ -46,12 +46,7 @@ if (isset($_POST['submit'])) {
        array_shift($cpuData);
        array_shift($hddData);
        
-
-       
-       //==========Jasim From Here=============//
-       
-       /* First Step To Convert To Desired Format I am splitting in to three  temp Array so it will be easy for you to debug */    
-       
+         
        $tempDataMain=[];
        $sourceOfTruthHeading=['Name', 'Application', 'Entity', 'CPU', 'Memory', 'Disk', 'Status', 'OS_Version'];
     
