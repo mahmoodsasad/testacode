@@ -1,9 +1,13 @@
 <?php
 
 require 'vendor/autoload.php';
-error_reporting(0);
+error_reporting(E_ALL);
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Style\Conditional;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 
 if (isset($_POST['submit'])) {
   $mainFile = $_FILES['main_file'];
@@ -46,7 +50,8 @@ if (isset($_POST['submit'])) {
        array_shift($cpuData);
        array_shift($hddData);
        
-         
+  
+       
        $tempDataMain=[];
        $sourceOfTruthHeading=['Name', 'Application', 'Entity', 'CPU', 'Memory', 'Disk', 'Status', 'OS_Version'];
     
@@ -83,9 +88,7 @@ if (isset($_POST['submit'])) {
                }
                   
            } 
-       }
-       
-       /* Now i combine all arrays and convert into desired out put Priniting The Final Array will give you idea what format to extract*/
+       } 
        
        $finalArray=[];
        
@@ -116,13 +119,10 @@ if (isset($_POST['submit'])) {
       //echo "<pre>"; print_r($finalArray);die();
        
       
-      // From Here Now i Am going to Put in Excel Library*/
-      
       $outputSpreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
       $outputSheet = $outputSpreadsheet->getActiveSheet();
       
       
-      //=======Creating First Row As Header===========//
       $finalHeadings=['Name', 'Application', 'Entity', 'CPU', 'Memory', 'Disk', 'Status', 'OS_Version','CPU_Usage','Memory_Usage'];
            
       $sheetColumn = 'A';
@@ -135,21 +135,52 @@ if (isset($_POST['submit'])) {
       $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Partition'); 
       $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Usage'); 
       
-      //=============Now Let Print The inner Data of Final Array==========//
        
        $sheetRow=2;
        foreach ($finalArray as $outerKey => $outerValue) {       
             $sheetColumn = 'A';
             foreach ($finalHeadings as $heading) {
-                $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $outerValue[$heading]);
+                if($heading=='CPU_Usage' || $heading=='Memory_Usage'){
+                    if (!empty($outerValue[$heading])) {
+                       
+                        $outerValue[$heading]  = str_replace('%', '', $outerValue[$heading]);
+                        
+                        if($outerValue[$heading]>=50 && $outerValue[$heading]<60){
+                          $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
+                         }
+                         if($outerValue[$heading]>=60){
+                          $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
+                         }
+                        
+                        $outputSpreadsheet->getActiveSheet()->setCellValueExplicit($sheetColumn++ . $sheetRow, $outerValue[$heading], DataType::TYPE_FLOAT);
+                        
+                    }else{
+                        $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $outerValue[$heading]); 
+                    }
+                }else{
+                    $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $outerValue[$heading]); 
+                }
+                
+                
             }
             
              if(count($outerValue['Partition']) > 0){
                   $innerRow = $sheetRow;
                   foreach ($outerValue['Partition'] as $key => $partition) {
+                      
                         $innerSheetColumn = $sheetColumn;
+                        $outerValue['Usage'] [$key] = str_replace('%', '',  $outerValue['Usage'] [$key]);
                         $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, $partition);
-                        $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow,  $outerValue['Usage'] [$key]);
+                        
+                        if($outerValue['Usage'] [$key]>=50 && $outerValue['Usage'] [$key]<60){
+                          $outputSpreadsheet->getActiveSheet()->getStyle($innerSheetColumn . $innerRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
+                         }
+                         if($outerValue['Usage'] [$key]>=60){
+                          $outputSpreadsheet->getActiveSheet()->getStyle($innerSheetColumn . $innerRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
+                         }
+                        
+                        $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, $outerValue['Usage'] [$key]);
+                        //$outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow,  $outerValue['Usage'] [$key],DataType::TYPE_NUMERIC);
                         $innerRow++;
                   }
                 }else{
@@ -161,7 +192,32 @@ if (isset($_POST['submit'])) {
             $sheetRow= $innerRow;
       }
       
+     // die();
+
       
+     /* $conditionalStyles = [];
+
+      $redCondition = new Conditional();
+      $redCondition->setConditionType(Conditional::CONDITION_CELLIS)
+          ->setOperatorType(Conditional::OPERATOR_GREATERTHANOREQUAL)
+          ->addCondition('60');
+      $redCondition->getStyle()->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB(Color::COLOR_RED);
+
+      $yellowCondition = new Conditional();
+      $yellowCondition->setConditionType(Conditional::CONDITION_CELLIS)
+          ->setOperatorType(Conditional::OPERATOR_BETWEEN)
+          ->addCondition('50')
+          ->addCondition('59.99');
+      $yellowCondition->getStyle()->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB(Color::COLOR_YELLOW);
+      
+
+      $conditionalStyles[] = $redCondition;
+      $conditionalStyles[] = $yellowCondition;
+
+      // Apply conditional formatting to CPU_Usage and Memory_Usage columns
+      $outputSpreadsheet->getActiveSheet()->getStyle('I2:I' . ($sheetRow - 1))->setConditionalStyles($conditionalStyles);
+      $outputSpreadsheet->getActiveSheet()->getStyle('J2:J' . ($sheetRow - 1))->setConditionalStyles($conditionalStyles);*/
+
      
        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
        header('Content-Disposition: attachment;filename="data.xlsx"');
@@ -169,8 +225,6 @@ if (isset($_POST['submit'])) {
       // Write the spreadsheet to the browser for download
       $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($outputSpreadsheet, 'Xlsx');
       $writer->save('php://output'); die();  
-      
-      //======= End Here From Jasim Side================//
                 
     }
   }
