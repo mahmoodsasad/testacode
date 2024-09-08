@@ -1,9 +1,9 @@
 <?php
 
 require 'vendor/autoload.php';
-error_reporting(E_ALL);
+//error_reporting(E_ALL);
 
-//ini_set('display_errors', 0);
+ini_set('display_errors', 0);
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Style\Conditional;
@@ -51,9 +51,7 @@ if (isset($_POST['submit'])) {
        array_shift($mainData);
        array_shift($cpuData);
        array_shift($hddData);
-       
-  
-       
+         
        $tempDataMain=[];
        $sourceOfTruthHeading=['Name', 'Application', 'Entity', 'CPU', 'Memory', 'Disk', 'Status', 'OS_Version'];
     
@@ -91,8 +89,7 @@ if (isset($_POST['submit'])) {
                   
            } 
        }
-       
-       
+              
        $finalArray=[];
        
        foreach ($tempDataMain as $mainKey => $mainRow){
@@ -121,12 +118,11 @@ if (isset($_POST['submit'])) {
        
       //echo "<pre>"; print_r($finalArray);die();
        
+
       
       $outputSpreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
       $outputSheet = $outputSpreadsheet->getActiveSheet();
       
-      
-      //=======Creating First Row As Header===========//
       $finalHeadings=['Name', 'Application', 'Entity', 'CPU', 'Memory', 'Disk', 'Status', 'OS_Version','CPU_Usage','Memory_Usage'];
            
       $sheetColumn = 'A';
@@ -137,11 +133,14 @@ if (isset($_POST['submit'])) {
       }
       
       $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Partition'); 
-      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Usage'); 
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Usage');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Remarks');
+      
        
        $sheetRow=2;
        foreach ($finalArray as $outerKey => $outerValue) {       
             $sheetColumn = 'A';
+            $remarks="";
             foreach ($finalHeadings as $heading) {
                 if($heading=='CPU_Usage' || $heading=='Memory_Usage'){
                     if (!empty($outerValue[$heading])) {
@@ -149,9 +148,18 @@ if (isset($_POST['submit'])) {
                         $outerValue[$heading]  = str_replace('%', '', $outerValue[$heading]);
                         
                         if($outerValue[$heading]>=50 && $outerValue[$heading]<60){
+                            
                           $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
                          }
                          if($outerValue[$heading]>=60){
+                             if($heading=='CPU_Usage'){
+                                $remarks = $remarks . "High CPU utilization,";     
+                             }
+                             if($heading=='Memory_Usage'){
+                                $remarks = $remarks . "High Memory utilization,";     
+                             }
+                            
+                            
                           $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
                          }
                         
@@ -182,6 +190,8 @@ if (isset($_POST['submit'])) {
                     
                   $innerRow = $sheetRow;
                   foreach ($outerValue['Partition'] as $key => $partition) {
+                      
+                        
                         $innerSheetColumn = $sheetColumn;
                         $outerValue['Usage'] [$key] = str_replace('%', '',  $outerValue['Usage'] [$key]);
                         $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, $partition);
@@ -192,17 +202,24 @@ if (isset($_POST['submit'])) {
                          
                          if($outerValue['Usage'] [$key]>=60){
                           $outputSpreadsheet->getActiveSheet()->getStyle($innerSheetColumn . $innerRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
+                          
+                          $remarks = 'High CPU utilization';
+                          
                          }
                         
                         $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, $outerValue['Usage'] [$key]);
+                        $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, $remarks);
                         //$outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow,  $outerValue['Usage'] [$key],DataType::TYPE_NUMERIC);
                         $innerRow++;
                   }
+                  
+                
                 }else{
                     $innerRow = $sheetRow;
                     $innerSheetColumn = $sheetColumn;
                     $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, '-');
                     $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, '-');
+                     $outputSpreadsheet->getActiveSheet()->setCellValue($innerSheetColumn++ . $innerRow, '-');
                     $innerRow++;
                 }
             $sheetRow= $innerRow;
@@ -211,11 +228,11 @@ if (isset($_POST['submit'])) {
        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
        header('Content-Disposition: attachment;filename="data.xlsx"');
 
-      // Write the spreadsheet to the browser for download
+
       $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($outputSpreadsheet, 'Xlsx');
       $writer->save('php://output'); die();  
       
-                
+
     }
   }
 }
@@ -224,28 +241,107 @@ if (isset($_POST['submit'])) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Merge Excel Data</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload and Processing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+        header {
+            background: #333;
+            color: #fff;
+            padding-top: 30px;
+            min-height: 70px;
+            border-bottom: #77aaff 3px solid;
+        }
+        header a {
+            color: #fff;
+            text-decoration: none;
+            text-transform: uppercase;
+            font-size: 16px;
+        }
+        header ul {
+            padding: 0;
+            list-style: none;
+        }
+        header li {
+            float: left;
+            display: inline;
+            padding: 0 20px 0 20px;
+        }
+        .main {
+            padding: 20px;
+            background: #fff;
+            margin-top: 20px;
+        }
+        .main h1 {
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input[type="file"] {
+            display: block;
+        }
+        .form-group input[type="submit"] {
+            background: #333;
+            color: #fff;
+            border: 0;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+        .form-group input[type="submit"]:hover {
+            background: #555;
+        }
+        .error {
+            color: red;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
-
-<?php if (isset($error)): ?>
-  <p style="color: red;"><?php echo $error; ?></p>
-<?php elseif (isset($message)): ?>
-  <p style="color: green;"><?php echo $message; ?></p>
-<?php endif; ?>
-
-<h1>Merge Excel Data</h1>
-<form method="post" enctype="multipart/form-data">
-  <label for="main_file">Main Sheet (with Name, Application, etc.):</label>
-  <input type="file" name="main_file" required><br><br>
-  <label for="cpu_file">CPU Sheet (with Name, CPU_Usage, Memory_Usage):</label>
-  <input type="file" name="cpu_file" required><br><br>
-  <label for="hdd_file">Hard Drive Sheet (with Name, Partition, Usage):</label>
-  <input type="file" name="hdd_file" required><br><br>
-  <input type="submit" name="submit" value="Merge Data">
-</form>
-
+    <header>
+        <div class="container">
+            <h1>File Upload and Processing</h1>
+        </div>
+    </header>
+    <div class="container main">
+        <h1>Upload Files</h1>
+        <?php if (isset($error)): ?>
+            <p class="error"><?php echo $error; ?></p>
+        <?php elseif (isset($message)): ?>
+            <p class="message"><?php echo $message; ?></p>
+        <?php endif; ?>
+        <form method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="main_file">Main Sheet (with Name, Application, etc.):</label>
+                <input type="file" name="main_file" required>
+            </div>
+            <div class="form-group">
+                <label for="cpu_file">CPU Sheet (with Name, CPU_Usage, Memory_Usage):</label>
+                <input type="file" name="cpu_file" required>
+            </div>
+            <div class="form-group">
+                <label for="hdd_file">Hard Drive Sheet (with Name, Partition, Usage):</label>
+                <input type="file" name="hdd_file" required>
+            </div>
+            <div class="form-group">
+                <input type="submit" name="submit" value="Merge Data">
+            </div>
+        </form>
+    </div>
 </body>
 </html>
