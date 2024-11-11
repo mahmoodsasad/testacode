@@ -1,0 +1,405 @@
+<?php
+
+require 'vendor/autoload.php';
+//error_reporting(E_ALL);
+
+ini_set('display_errors', 0);
+
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Style\Conditional;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+
+if (isset($_POST['submit'])) {
+  $mainFile = $_FILES['main_file'];
+  $cpuFile = $_FILES['cpu_file'];
+  $hddFile = $_FILES['hdd_file'];
+
+  if (empty($mainFile) || empty($cpuFile) || empty($hddFile)) {
+    $error = "Please select all files";
+  } else {
+    $mainFileType = IOFactory::identify($mainFile['tmp_name']);
+    $cpuFileType = IOFactory::identify($cpuFile['tmp_name']);
+    $hddFileType = IOFactory::identify($hddFile['tmp_name']);
+
+    if (!in_array($mainFileType, ['Xlsx', 'Xls'])) {
+      $error = "Invalid main file format. Please upload an Excel file.";
+    } elseif (!in_array($cpuFileType, ['Xlsx', 'Xls'])) {
+      $error = "Invalid CPU file format. Please upload an Excel file.";
+    } elseif (!in_array($hddFileType, ['Xlsx', 'Xls'])) {
+      $error = "Invalid Hard Drive file format. Please upload an Excel file.";
+    } else {
+      $mainReader = IOFactory::createReaderForFile($mainFile['tmp_name']);
+      $cpuReader = IOFactory::createReaderForFile($cpuFile['tmp_name']);
+      $hddReader = IOFactory::createReaderForFile($hddFile['tmp_name']);
+      
+      $mainSpreadsheet = $mainReader->load($mainFile['tmp_name']);
+      $cpuSpreadsheet = $cpuReader->load($cpuFile['tmp_name']);
+      $hddSpreadsheet = $hddReader->load($hddFile['tmp_name']);
+
+      $mainSheet = $mainSpreadsheet->getActiveSheet();
+      $cpuSheet = $cpuSpreadsheet->getActiveSheet();
+      $hddSheet = $hddSpreadsheet->getActiveSheet();
+      
+      
+
+      $mainData = $mainSheet->toArray();
+      $cpuData = $cpuSheet->toArray();
+      $hddData = $hddSheet->toArray();
+      
+       array_shift($mainData);
+       array_shift($cpuData);
+       array_shift($hddData);
+       
+
+       
+       //==========Here=============//
+       
+       /* First Step To Convert To Desired Format I am splitting in to three  temp Array so it will be easy for you to debug */    
+       
+       $tempDataMain=[];
+       $sourceOfTruthHeading=['Name', 'Application', 'Entity', 'CPU', 'Memory', 'Disk', 'Status', 'OS_Version'];
+    
+       foreach ($mainData as $key=>$value){
+           foreach ($value as $innerkey => $mainSheetVal){
+                  $tempDataMain[$key][$sourceOfTruthHeading[$innerkey]]=$mainSheetVal;
+           } 
+       }
+       
+     //echo "<pre>"; print_r($tempDataMain); die();
+       
+        
+       $tempDataCpu=[];
+       $cpuHeading=['Name', 'CPU_Usage', 'Memory_Usage'];
+       
+       foreach ($cpuData as $key=>$value){
+           foreach ($value as $innerkey => $cpuSheetVal){
+               if($cpuSheetVal!=''){
+                  $tempDataCpu[$key][$cpuHeading[$innerkey]]=$cpuSheetVal; 
+               }
+                  
+           } 
+       }
+       
+       //echo "<pre>"; print_r($tempDataCpu); die();
+      
+       $tempDataHdd=[];
+       $hddHeading=['Name', 'Partition', 'Usage'];
+       
+       foreach ($hddData as $key => $value){
+           foreach ($value as $innerkey =>$hddSheetVal){
+               if($hddSheetVal!=''){
+                  $tempDataHdd[$key][$hddHeading[$innerkey]]=$hddSheetVal; 
+               }
+                  
+           } 
+       }
+       
+       //echo "<pre>"; print_r($tempDataHdd); die();
+       
+       /* Now i combine all arrays and convert into desired out put Priniting The Final Array will give you idea what format to extract*/
+       
+       $finalArray=[];
+       
+       foreach ($tempDataMain as $mainKey => $mainRow){
+           $finalArray[$mainKey]=$mainRow;
+           $finalArray[$mainKey]['CPU_Usage']='';
+           $finalArray[$mainKey]['Memory_Usage']='';
+           foreach ($tempDataCpu as $cpuKey => $cpuRow){
+               if(strtoupper($mainRow['Name'])==strtoupper($cpuRow['Name'])){
+                  $finalArray[$mainKey]['CPU_Usage']=$cpuRow['CPU_Usage'];
+                  $finalArray[$mainKey]['Memory_Usage']=$cpuRow['Memory_Usage'];
+               }
+           }
+           
+           $finalArray[$mainKey]['Partition']=[];
+           $finalArray[$mainKey]['Usage']=[];
+           $i=0;
+           foreach ($tempDataHdd as $hddKey => $hddRow){
+               if(strtoupper($mainRow['Name'])==strtoupper($hddRow['Name'])){
+                  $finalArray[$mainKey]['Partition'][$i]=$hddRow['Partition'];
+                  $finalArray[$mainKey]['Usage'][$i]=$hddRow['Usage'];
+                  $i++;
+               }
+               
+           }
+       }
+       
+     
+      
+      $result = [];
+       
+      foreach ($finalArray as  $data) {  
+           $partitionCount = count($data['Partition']);
+           
+           if($partitionCount > 0){
+               
+               for ($i = 0; $i < $partitionCount; $i++) {
+                $result[] = [
+                    "Name" => $data["Name"],
+                    "Application" => $data["Application"],
+                    "Entity" => $data["Entity"],
+                    "CPU" => $data["CPU"],
+                    "Memory" => $data["Memory"],
+                    "Disk" => $data["Disk"],
+                    "Status" => $data["Status"],
+                    "OS_Version" => $data["OS_Version"],
+                    "CPU_Usage" => $data["CPU_Usage"],
+                    "Memory_Usage" => $data["Memory_Usage"],
+                    "Partition" => $data["Partition"][$i], // Assign the specific partition for this entry
+                    "Usage" => $data["Usage"][$i]          // Assign the specific usage for this entry
+                ];
+            }
+               
+           }else{
+               
+                   $result[] = [
+                    "Name" => $data["Name"],
+                    "Application" => $data["Application"],
+                    "Entity" => $data["Entity"],
+                    "CPU" => $data["CPU"],
+                    "Memory" => $data["Memory"],
+                    "Disk" => $data["Disk"],
+                    "Status" => $data["Status"],
+                    "OS_Version" => $data["OS_Version"],
+                    "CPU_Usage" => $data["CPU_Usage"],
+                    "Memory_Usage" => $data["Memory_Usage"],
+                    "Partition" => '', // Assign the specific partition for this entry
+                    "Usage" => ''          // Assign the specific usage for this entry
+                ];
+           }
+           
+          
+      }
+      
+      
+       //echo "<pre>"; print_r($result);die();
+       
+      
+      
+      $outputSpreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+      $outputSheet = $outputSpreadsheet->getActiveSheet();
+
+      $sheetColumn = 'A';
+      $sheetRow = 1;
+
+
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Name');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Application'); 
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Entity');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'CPU');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Memory');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Disk'); 
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Status');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'OS_Version');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'CPU_Usage');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Memory_Usage'); 
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Partition');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Usage');
+      $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, 'Remarks');
+      
+      //=============Now Let Print The inner Data of Final Array==========//
+       
+       $sheetRow=2;
+       
+       foreach ($result as $value){
+            $sheetColumn = 'A';
+            $remarks="";
+            
+            $outerValue[$heading]  = str_replace('%', '', $outerValue[$heading]);
+                        
+                        if($outerValue[$heading]>=50 && $outerValue[$heading]<60){
+                            
+                          
+                         }
+            
+             $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Name']);
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Application']); 
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Entity']);
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['CPU']);
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Memory']);
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Disk']); 
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Status']);
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['OS_Version']);
+              
+              $value['CPU_Usage'] = str_replace('%', '', $value['CPU_Usage']);
+              $value['Memory_Usage'] = str_replace('%', '', $value['Memory_Usage']);
+               $value['Usage'] = str_replace('%', '', $value['Usage']);
+              
+              
+              if($value['CPU_Usage']>=50 && $value['CPU_Usage']<60){
+                   $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
+                  $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['CPU_Usage']);
+                  
+                 
+              } elseif($value['CPU_Usage']>=60){
+                   $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
+                   $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['CPU_Usage']);
+                  $remarks = $remarks . "High CPU Utilization,";      
+              }else{
+                 
+                   $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['CPU_Usage']);
+              }
+              
+              if($value['Memory_Usage']>=50 && $value['Memory_Usage']<60){
+                   $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
+                  $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Memory_Usage']);
+                 
+              } elseif($value['Memory_Usage']>=60){
+                   $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
+                   $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Memory_Usage']);
+                   $remarks = $remarks . "High Memory Utilization,"; 
+                      
+              }else{
+                 
+                   $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Memory_Usage']);
+              }
+              
+             
+               
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Partition']);
+              
+              if($value['Usage']>=50 && $value['Usage']<60){
+                   $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFFF00');
+                  $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Usage']);
+                 
+              } elseif($value['Usage']>=60){
+                   $outputSpreadsheet->getActiveSheet()->getStyle($sheetColumn.$sheetRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('ff0000');
+                   $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Usage']);
+                   $remarks = $remarks . "High Disk Utilization,"; 
+                      
+              }else{
+                 
+                   $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, $value['Usage']);
+              }
+             
+              $outputSpreadsheet->getActiveSheet()->setCellValue($sheetColumn++ . $sheetRow, rtrim($remarks,','));
+            
+       
+           $sheetRow++;
+       }
+    
+      
+      
+       header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+       header('Content-Disposition: attachment;filename="data.xlsx"');
+
+      // Write the spreadsheet to the browser for download
+      $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($outputSpreadsheet, 'Xlsx');
+      $writer->save('php://output'); die();  
+      
+      //======= End Here================//
+                
+    }
+  }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload and Processing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+        header {
+            background: #333;
+            color: #fff;
+            padding-top: 30px;
+            min-height: 70px;
+            border-bottom: #77aaff 3px solid;
+        }
+        header a {
+            color: #fff;
+            text-decoration: none;
+            text-transform: uppercase;
+            font-size: 16px;
+        }
+        header ul {
+            padding: 0;
+            list-style: none;
+        }
+        header li {
+            float: left;
+            display: inline;
+            padding: 0 20px 0 20px;
+        }
+        .main {
+            padding: 20px;
+            background: #fff;
+            margin-top: 20px;
+        }
+        .main h1 {
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input[type="file"] {
+            display: block;
+        }
+        .form-group input[type="submit"] {
+            background: #333;
+            color: #fff;
+            border: 0;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+        .form-group input[type="submit"]:hover {
+            background: #555;
+        }
+        .error {
+            color: red;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>File Upload and Processing</h1>
+        </div>
+    </header>
+    <div class="container main">
+        <h1>Upload Files</h1>
+        <?php if (isset($error)): ?>
+            <p class="error"><?php echo $error; ?></p>
+        <?php elseif (isset($message)): ?>
+            <p class="message"><?php echo $message; ?></p>
+        <?php endif; ?>
+        <form method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="main_file">Main Sheet (with Name, Application, etc.):</label>
+                <input type="file" name="main_file" required>
+            </div>
+            <div class="form-group">
+                <label for="cpu_file">CPU Sheet (with Name, CPU_Usage, Memory_Usage):</label>
+                <input type="file" name="cpu_file" required>
+            </div>
+            <div class="form-group">
+                <label for="hdd_file">Hard Drive Sheet (with Name, Partition, Usage):</label>
+                <input type="file" name="hdd_file" required>
+            </div>
+            <div class="form-group">
+                <input type="submit" name="submit" value="Merge Data">
+            </div>
+        </form>
+    </div>
+</body>
+</html>
